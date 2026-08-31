@@ -770,7 +770,7 @@ def generate_summary_and_risks(
         full_text = "\n\n".join(
             c.content.strip() for c in chunks if c.content and c.content.strip()
         )
-        full_text = full_text[:30000]
+        full_text = full_text[:18000]
 
         if not full_text.strip():
             return "No readable text found in the document.", "", "", usage_count
@@ -830,7 +830,7 @@ Document:
                 {"role": "user", "content": summary_prompt},
             ],
             temperature=0.15,
-            max_tokens=2600,
+            max_tokens=1800,
         )
 
         raw_response = response.choices[0].message.content or ""
