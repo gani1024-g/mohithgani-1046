@@ -1266,7 +1266,7 @@ if __name__ == "__main__":
     demo.launch(
         server_name="127.0.0.1",
         server_port=7862,
-        share=True,
+        share=False,
         css=custom_css,
         debug=True,
         show_error=True,
