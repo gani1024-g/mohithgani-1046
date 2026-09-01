@@ -12,15 +12,22 @@ import fitz
 import filetype
 import pytesseract
 from PIL import Image
-from sentence_transformers import SentenceTransformer
+import numpy as np
+from huggingface_hub import InferenceClient
 
 TESSERACT_MODEL_NAME = "eng"
-TESSERACT_CMD = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
-if not os.path.isfile(TESSERACT_CMD):
-    raise RuntimeError(f"Tesseract executable not found at: {TESSERACT_CMD}")
+if os.name == "nt":
+    TESSERACT_CMD = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
+    if not os.path.isfile(TESSERACT_CMD):
+        raise RuntimeError(
+            f"Tesseract executable not found at: {TESSERACT_CMD}"
+        )
+
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
+else:
+    TESSERACT_CMD = "tesseract"
 
 ALLOWED_MIME_TYPES = {
     "application/pdf": "pdf",
@@ -30,14 +37,16 @@ ALLOWED_MIME_TYPES = {
     "image/jpeg": "jpg",
 }
 
-_model = None
+HF_TOKEN = os.getenv("HF_TOKEN")
 
+if not HF_TOKEN:
+    raise RuntimeError("HF_TOKEN environment variable is not set.")
 
-def get_embedding_model() -> SentenceTransformer:
-    global _model
-    if _model is None:
-        _model = SentenceTransformer("BAAI/bge-small-en-v1.5")
-    return _model
+embedding_client = InferenceClient(
+    model="BAAI/bge-small-en-v1.5",
+    token=HF_TOKEN,
+    timeout=60,
+)
 
 
 def validate_file_magic(file_bytes: bytes, max_size_mb: int = 50) -> str:
@@ -189,7 +198,6 @@ def build_semantic_chunks(
 def process_document_pipeline(
     doc_id: int,
     file_bytes: bytes,
-    embedding_model: Optional[SentenceTransformer] = None,
 ) -> Tuple[int, List[Dict]]:
     mime = validate_file_magic(file_bytes)
     if mime != "application/pdf":
@@ -206,15 +214,28 @@ def process_document_pipeline(
             all_chunks.extend(build_semantic_chunks(doc_id, page_idx + 1, blocks))
 
         if all_chunks:
-            model = embedding_model or get_embedding_model()
-            texts = [c["content"] for c in all_chunks]
-            embeddings = model.encode(
-                texts,
-                normalize_embeddings=True,
-                show_progress_bar=False,
-            )
-            for chunk, emb in zip(all_chunks, embeddings):
-                chunk["embedding"] = [float(value) for value in emb]
+            for chunk in all_chunks:
+                text = chunk["content"].strip()
+
+                if not text:
+                    continue
+
+                embedding = embedding_client.feature_extraction(
+                    text,
+                    normalize=True,
+                )
+
+                vector = np.asarray(
+                    embedding,
+                    dtype=np.float32,
+                ).reshape(-1)
+
+                if vector.shape[0] != 384:
+                    raise ValueError(
+                        f"Expected 384-dimensional embedding, got {vector.shape[0]}"
+                    )
+
+                chunk["embedding"] = vector.tolist()
 
         return page_count, all_chunks
     finally:

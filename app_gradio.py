@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 from groq import Groq
 from PIL import Image
 import pytesseract
-from sentence_transformers import SentenceTransformer
+from huggingface_hub import InferenceClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
@@ -35,9 +35,11 @@ from models import (
     MessageCitation,
     User,
 )
-from ingestion_pipeline import process_document_pipeline, validate_file_magic
+
 
 load_dotenv()
+
+from ingestion_pipeline import process_document_pipeline, validate_file_magic
 
 # =====================================================================
 # 1. Configuration
@@ -76,8 +78,19 @@ with engine.begin() as conn:
 Base.metadata.create_all(engine)
 print("PostgreSQL connected and tables verified.")
 
-print("Loading BGE-large-en Embedding Model...")
-embedding_model = SentenceTransformer("BAAI/bge-large-en-v1.5")
+print("Connecting to Hugging Face Embedding API...")
+
+HF_TOKEN = os.getenv("HF_TOKEN")
+if not HF_TOKEN:
+    raise RuntimeError("HF_TOKEN environment variable is not set.")
+
+embedding_client = InferenceClient(
+    model="BAAI/bge-small-en-v1.5",
+    token=HF_TOKEN,
+    timeout=60,
+)
+
+print("Hugging Face Embedding API ready.")
 
 MAX_FILE_SIZE_MB = 50
 MAX_PAGE_COUNT = 300
@@ -357,14 +370,26 @@ def extract_non_pdf_chunks(file_bytes: bytes, filename: str, ext: str, doc_id: i
 def add_embeddings(chunks: List[Dict]) -> None:
     if not chunks:
         return
-    texts = [c["content"] for c in chunks]
-    embeddings = embedding_model.encode(
-        texts,
-        normalize_embeddings=True,
-        show_progress_bar=False,
-    )
-    for chunk, emb in zip(chunks, embeddings):
-        chunk["embedding"] = [float(value) for value in emb]
+
+    for chunk in chunks:
+        text = chunk["content"].strip()
+
+        if not text:
+            continue
+
+        embedding = embedding_client.feature_extraction(
+            text,
+            normalize=True,
+        )
+
+        vector = np.asarray(embedding, dtype=np.float32).reshape(-1)
+
+        if vector.shape[0] != 384:
+            raise ValueError(
+                f"Expected 384-dimensional embedding, got {vector.shape[0]}"
+            )
+
+        chunk["embedding"] = vector.tolist()
 
 
 
@@ -442,7 +467,6 @@ def process_uploaded_document(file_obj: Any, user_data: Optional[Dict]):
                 page_count, chunks = process_document_pipeline(
                     doc_id=doc_id,
                     file_bytes=file_bytes,
-                    embedding_model=embedding_model,
                 )
             else:
                 page_count, chunks = extract_non_pdf_chunks(file_bytes, filename, ext, doc_id)
@@ -625,14 +649,20 @@ def stream_rag_response(
                 yield chat_history, "", usage_count
                 return
 
+            q_embedding = embedding_client.feature_extraction(
+                user_query,
+                normalize=True,
+            )
+
             q_vec = np.asarray(
-                embedding_model.encode(
-                    user_query,
-                    normalize_embeddings=True,
-                    show_progress_bar=False,
-                ),
-                dtype=np.float32,
-            ).tolist()
+                q_embedding,
+            dtype=np.float32,
+            ).reshape(-1).tolist()
+
+            if len(q_vec) != 384:
+                raise ValueError(
+                    f"Expected 384-dimensional query embedding, got {len(q_vec)}"
+                )
 
             top_chunks = db.execute(
                 select(DocumentChunk)
