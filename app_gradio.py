@@ -69,13 +69,23 @@ SessionLocal = sessionmaker(
     expire_on_commit=False,
 )
 
+# Enable pgvector before creating tables.
 with engine.begin() as conn:
     conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector")
-    # Safe, idempotent migration for temporary guest-account expiry.
-    conn.exec_driver_sql('ALTER TABLE users ADD COLUMN IF NOT EXISTS "ExpiresAt" TIMESTAMP NULL')
-    conn.exec_driver_sql('CREATE INDEX IF NOT EXISTS ix_users_ExpiresAt ON users ("ExpiresAt")')
 
+# Create all tables first.
 Base.metadata.create_all(engine)
+
+# Add guest-account expiry fields after the users table exists.
+with engine.begin() as conn:
+    conn.exec_driver_sql(
+        'ALTER TABLE users ADD COLUMN IF NOT EXISTS "ExpiresAt" TIMESTAMP NULL'
+    )
+    conn.exec_driver_sql(
+        'CREATE INDEX IF NOT EXISTS ix_users_ExpiresAt ON users ("ExpiresAt")'
+    )
+
+print("PostgreSQL connected and tables verified.")
 print("PostgreSQL connected and tables verified.")
 
 print("Connecting to Hugging Face Embedding API...")
