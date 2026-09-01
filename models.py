@@ -83,7 +83,7 @@ class DocumentChunk(Base):
     content: Mapped[str] = mapped_column("ChunkText", Text, nullable=False)
     token_count: Mapped[Optional[int]] = mapped_column("TokenCount", Integer, nullable=True)
     embedding_id: Mapped[Optional[str]] = mapped_column("EmbeddingId", String(100), nullable=True)
-    embedding: Mapped[List[float]] = mapped_column("Embedding", Vector(1024), nullable=False)
+    embedding: Mapped[List[float]] = mapped_column("Embedding", Vector(384), nullable=False)
     created_at: Mapped[datetime] = mapped_column("CreatedAt", DateTime, nullable=False, default=datetime.utcnow)
     bbox_json: Mapped[Optional[str]] = mapped_column("BBoxJson", Text, nullable=True)
 
