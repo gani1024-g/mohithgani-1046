@@ -9,7 +9,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import fitz
-import magic
+import filetype
 import pytesseract
 from PIL import Image
 from sentence_transformers import SentenceTransformer
@@ -43,13 +43,17 @@ def get_embedding_model() -> SentenceTransformer:
 def validate_file_magic(file_bytes: bytes, max_size_mb: int = 50) -> str:
     if not file_bytes:
         raise ValueError("Uploaded file is empty.")
+
     if len(file_bytes) > max_size_mb * 1024 * 1024:
         raise ValueError(f"File size exceeds maximum limit of {max_size_mb} MB")
-    mime = magic.from_buffer(file_bytes, mime=True)
+
+    kind = filetype.guess(file_bytes)
+    mime = kind.mime if kind else "application/octet-stream"
+
     if mime not in ALLOWED_MIME_TYPES:
         raise ValueError(f"Unsupported file format: {mime}")
-    return mime
 
+    return mime
 
 def extract_page_text_and_boxes(page: fitz.Page) -> Tuple[str, List[Dict]]:
     rect = page.rect
