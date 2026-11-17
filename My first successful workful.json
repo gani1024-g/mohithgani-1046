@@ -1,0 +1,145 @@
+{
+  "name": "My first successful workful",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "0a3f6530-7091-4871-8fc6-3caa10883c84",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://api.open-meteo.com/v1/forecast?latitude=12.2958&longitude=76.6394&current_weather=true",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "4d1f1c0d-e7f4-47b0-86ef-bbd0458e7f75",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "45c39f6d-cdf7-40e5-a52f-d084975cb125",
+              "name": "TEMP",
+              "value": "={{ $json.current_weather.temperature }}",
+              "type": "number"
+            },
+            {
+              "id": "477bd90f-0206-469b-8280-326457f65ac1",
+              "name": "windspeed",
+              "value": "={{ $json.current_weather.windspeed }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        448,
+        0
+      ],
+      "id": "63317eff-3746-4b96-a99a-c3cfc7a48bad",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "sendTo": "mohithganesh52@gmail.com",
+        "subject": "wether report ",
+        "message": "=Good morning!   Current weather update: - Temperature: {{ $json.TEMP }}°C - Wind Speed: {{ $json.windspeed }} km/h",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "19333323-dfcc-407b-b7aa-838c9fd8e649",
+      "name": "Send a message",
+      "webhookId": "fa837573-0bee-4ed7-b704-d6b68b4ec5c4",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "E0ZUHHaXcPvC12PM",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "2b62aafc-caac-45dd-9659-69b4d547248a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bc89440f88c1cc9aec2e9f96d85803d9b58cabf4d9435407116ba05e3827f5d9"
+  },
+  "nodeGroups": [],
+  "id": "G6RL6FMilTVYrrCg",
+  "tags": []
+}
